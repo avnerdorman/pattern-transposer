@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIDI Note Transposer</title>
+    <title>MIDI Note Transposer with Output</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -20,24 +20,42 @@
     </style>
 </head>
 <body>
-    <h1>MIDI Note Transposer</h1>
+    <h1>MIDI Note Transposer with Output</h1>
     <p>Enter a transpose pattern (e.g., -4, -8 or -4 -8):</p>
     <input type="text" id="pattern" placeholder="Enter pattern" />
     <button id="startButton">Start MIDI</button>
+    <p>Select MIDI Output:</p>
+    <select id="midiOutputs"></select>
     <div id="output"></div>
 
     <script>
         let midiAccess;
+        let midiOutput;
         let outputDiv = document.getElementById('output');
+        let midiOutputsDropdown = document.getElementById('midiOutputs');
 
         async function initMIDI() {
             try {
                 midiAccess = await navigator.requestMIDIAccess();
                 outputDiv.innerText += "MIDI Access enabled.\n";
 
+                // Populate MIDI output dropdown
+                for (let output of midiAccess.outputs.values()) {
+                    let option = document.createElement('option');
+                    option.value = output.id;
+                    option.text = output.name;
+                    midiOutputsDropdown.appendChild(option);
+                }
+
                 for (let input of midiAccess.inputs.values()) {
                     input.onmidimessage = handleMIDIMessage;
                 }
+
+                midiOutputsDropdown.addEventListener('change', () => {
+                    let selectedOutputId = midiOutputsDropdown.value;
+                    midiOutput = midiAccess.outputs.get(selectedOutputId);
+                    outputDiv.innerText += `Selected MIDI Output: ${midiOutput?.name || "None"}\n`;
+                });
             } catch (error) {
                 outputDiv.innerText += "Failed to get MIDI access: " + error + "\n";
             }
@@ -58,6 +76,20 @@
                 const transposedNote = data1 + transposeValue;
 
                 outputDiv.innerText += `Input Note: ${data1}, Transposed Note: ${transposedNote}\n`;
+
+                // Send transposed note to MIDI output
+                if (midiOutput) {
+                    midiOutput.send([status, transposedNote, data2]); // Send Note On
+                }
+            } else if (status >= 128 && status < 144) { // Note Off messages
+                const transposeIndex = data1 % pattern.length;
+                const transposeValue = pattern[transposeIndex];
+                const transposedNote = data1 + transposeValue;
+
+                // Send transposed note to MIDI output
+                if (midiOutput) {
+                    midiOutput.send([status, transposedNote, data2]); // Send Note Off
+                }
             }
         }
 
