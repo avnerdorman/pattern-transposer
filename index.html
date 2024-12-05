@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIDI Note Transposer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        input, button {
+            margin: 10px 0;
+        }
+        #output {
+            margin-top: 20px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>MIDI Note Transposer</h1>
+    <p>Enter a transpose pattern (e.g., -4, -8 or -4 -8):</p>
+    <input type="text" id="pattern" placeholder="Enter pattern" />
+    <button id="startButton">Start MIDI</button>
+    <div id="output"></div>
+
+    <script>
+        let midiAccess;
+        let outputDiv = document.getElementById('output');
+
+        async function initMIDI() {
+            try {
+                midiAccess = await navigator.requestMIDIAccess();
+                outputDiv.innerText += "MIDI Access enabled.\n";
+
+                for (let input of midiAccess.inputs.values()) {
+                    input.onmidimessage = handleMIDIMessage;
+                }
+            } catch (error) {
+                outputDiv.innerText += "Failed to get MIDI access: " + error + "\n";
+            }
+        }
+
+        function parsePattern(pattern) {
+            return pattern.split(/[\s,]+/).map(Number).filter(num => !isNaN(num));
+        }
+
+        function handleMIDIMessage(message) {
+            const [status, data1, data2] = message.data; // status, data1 = pitch, data2 = velocity
+            const patternInput = document.getElementById('pattern').value;
+            const pattern = parsePattern(patternInput);
+
+            if (status >= 144 && status < 160) { // Note On messages
+                const transposeIndex = data1 % pattern.length;
+                const transposeValue = pattern[transposeIndex];
+                const transposedNote = data1 + transposeValue;
+
+                outputDiv.innerText += `Input Note: ${data1}, Transposed Note: ${transposedNote}\n`;
+            }
+        }
+
+        document.getElementById('startButton').addEventListener('click', () => {
+            outputDiv.innerText = ""; // Clear previous output
+            initMIDI();
+        });
+    </script>
+</body>
+</html>
