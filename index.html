@@ -60,32 +60,28 @@
                          .filter(num => !isNaN(num));
         }
 
-        function handleMIDIMessage(message) {
-            const [status, note, velocity] = message.data;
-            const pattern = parsePattern(document.getElementById('pattern').value);
-            
-            // Only process if we have a valid pattern
-            if (!pattern.length) return;
+function handleMIDIMessage(message) {
+    // Skip if message is from our selected output device
+    if (midiOutput && message.target && message.target.id === midiOutput.id) {
+        return;
+    }
 
-            // Skip if message is from output device
-            if (midiOutput && message.target.id === midiOutput.id) return;
+    const [status, note, velocity] = message.data;
+    const pattern = parsePattern(document.getElementById('pattern').value);
+    
+    if (!pattern.length) return;
 
-            // Handle Note On (144-159) and Note Off (128-143)
-            if ((status >= 128 && status < 144) || (status >= 144 && status < 160)) {
-                const transpose = pattern[currentPatternIndex];
-                const transposedNote = Math.min(127, Math.max(0, note + transpose));
-                
-                if (midiOutput) {
-                    midiOutput.send([status, transposedNote, velocity]);
-                    outputDiv.innerText = `Note ${status >= 144 ? "On" : "Off"}: ${note} → ${transposedNote}\n` + outputDiv.innerText;
-                    
-                    // Update pattern index for next note
-                    currentPatternIndex = (currentPatternIndex + 1) % pattern.length;
-                } else {
-                    outputDiv.innerText = "No MIDI output selected.\n" + outputDiv.innerText;
-                }
-            }
+    if ((status >= 128 && status < 144) || (status >= 144 && status < 160)) {
+        const transpose = pattern[currentPatternIndex];
+        const transposedNote = Math.min(127, Math.max(0, note + transpose));
+        
+        if (midiOutput) {
+            midiOutput.send([status, transposedNote, velocity]);
+            outputDiv.innerText = `Note ${status >= 144 ? "On" : "Off"}: ${note} → ${transposedNote}\n` + outputDiv.innerText;
+            currentPatternIndex = (currentPatternIndex + 1) % pattern.length;
         }
+    }
+}
 
         midiOutputsDropdown.addEventListener('change', () => {
             const selectedOutputId = midiOutputsDropdown.value;
