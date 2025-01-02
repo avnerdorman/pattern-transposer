@@ -1,115 +1,86 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIDI Note Transposer with Output</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-        input, button {
-            margin: 10px 0;
-        }
-        #output {
-            margin-top: 20px;
-            white-space: pre-wrap;
-            font-family: monospace;
-        }
-    </style>
-</head>
-<body>
-    <h1>MIDI Note Transposer with Output</h1>
-    <p>Enter a transpose pattern (e.g., -4, -8 or -4 -8):</p>
-    <input type="text" id="pattern" placeholder="Enter pattern" />
-    <button id="startButton">Start MIDI</button>
-    <p>Select MIDI Output:</p>
-    <select id="midiOutputs"></select>
-    <div id="output"></div>
+let midiAccess;
+let midiOutput;
+const outputDiv = document.getElementById('output');
+const midiOutputsDropdown = document.getElementById('midiOutputs');
 
-    <script>
-        let midiAccess;
-        let midiOutput;
-        const outputDiv = document.getElementById('output');
-        const midiOutputsDropdown = document.getElementById('midiOutputs');
+async function initMIDI() {
+    try {
+        midiAccess = await navigator.requestMIDIAccess();
+        outputDiv.innerText += "MIDI Access enabled.\n";
 
-        async function initMIDI() {
-            try {
-                midiAccess = await navigator.requestMIDIAccess();
-                outputDiv.innerText += "MIDI Access enabled.\n";
-
-                // Populate MIDI output dropdown
-                for (let output of midiAccess.outputs.values()) {
-                    const option = document.createElement('option');
-                    option.value = output.id;
-                    option.text = output.name;
-                    midiOutputsDropdown.appendChild(option);
-                }
-
-                // Listen for MIDI input
-                for (let input of midiAccess.inputs.values()) {
-                    input.onmidimessage = handleMIDIMessage;
-                }
-
-                // Handle MIDI output selection
-                midiOutputsDropdown.addEventListener('change', () => {
-                    const selectedOutputId = midiOutputsDropdown.value;
-                    midiOutput = midiAccess.outputs.get(selectedOutputId);
-                    outputDiv.innerText += `Selected MIDI Output: ${midiOutput?.name || "None"}\n`;
-                });
-            } catch (error) {
-                outputDiv.innerText += "Failed to get MIDI access: " + error + "\n";
-            }
+        // Populate MIDI output dropdown
+        for (let output of midiAccess.outputs.values()) {
+            const option = document.createElement('option');
+            option.value = output.id;
+            option.text = output.name;
+            midiOutputsDropdown.appendChild(option);
         }
 
-        function parsePattern(pattern) {
-            try {
-                return pattern.split(/[\s,]+/).map(Number).filter(num => !isNaN(num));
-            } catch {
-                outputDiv.innerText += "Invalid pattern entered. Please check and try again.\n";
-                return [];
-            }
+        // Listen for MIDI input
+        for (let input of midiAccess.inputs.values()) {
+            input.onmidimessage = handleMIDIMessage;
         }
 
-        function handleMIDIMessage(message) {
-            const [status, data1, data2] = message.data; // status, pitch, velocity
-            const patternInput = document.getElementById('pattern').value;
-            const pattern = parsePattern(patternInput);
-
-            if (!pattern.length) return;
-
-            if (status >= 144 && status < 160) { // Note On
-                const transposeIndex = data1 % pattern.length;
-                const transposeValue = pattern[transposeIndex];
-                const transposedNote = data1 + transposeValue;
-
-                outputDiv.innerText += `Note On: Input ${data1}, Transposed ${transposedNote}\n`;
-
-                if (midiOutput) {
-                    midiOutput.send([status, transposedNote, data2]);
-                } else {
-                    outputDiv.innerText += "No MIDI output selected.\n";
-                }
-            } else if (status >= 128 && status < 144) { // Note Off
-                const transposeIndex = data1 % pattern.length;
-                const transposeValue = pattern[transposeIndex];
-                const transposedNote = data1 + transposeValue;
-
-                outputDiv.innerText += `Note Off: Input ${data1}, Transposed ${transposedNote}\n`;
-
-                if (midiOutput) {
-                    midiOutput.send([status, transposedNote, data2]);
-                } else {
-                    outputDiv.innerText += "No MIDI output selected.\n";
-                }
-            }
-        }
-
-        document.getElementById('startButton').addEventListener('click', () => {
-            outputDiv.innerText = ""; // Clear previous output
-            initMIDI();
+        // Handle MIDI output selection
+        midiOutputsDropdown.addEventListener('change', () => {
+            const selectedOutputId = midiOutputsDropdown.value;
+            midiOutput = midiAccess.outputs.get(selectedOutputId);
+            outputDiv.innerText += `Selected MIDI Output: ${midiOutput?.name || "None"}\n`;
         });
-    </script>
-</body>
-</html>
+    } catch (error) {
+        outputDiv.innerText += "Failed to get MIDI access: " + error + "\n";
+    }
+}
+
+function parsePattern(pattern) {
+    try {
+        return pattern.split(/[\s,]+/).map(Number).filter(num => !isNaN(num));
+    } catch {
+        outputDiv.innerText += "Invalid pattern entered. Please check and try again.\n";
+        return [];
+    }
+}
+
+function handleMIDIMessage(message) {
+    const [status, data1, data2] = message.data; // status, pitch, velocity
+    const patternInput = document.getElementById('pattern').value;
+    const pattern = parsePattern(patternInput);
+
+    if (!pattern.length) return;
+
+    // Ignore messages from the same device as the selected output
+    if (midiOutput && message.source && message.source === midiOutput) {
+        return;
+    }
+
+    if (status >= 144 && status < 160) { // Note On
+        const transposeIndex = data1 % pattern.length;
+        const transposeValue = pattern[transposeIndex];
+        const transposedNote = data1 + transposeValue;
+
+        outputDiv.innerText += `Note On: Input ${data1}, Transposed ${transposedNote}\n`;
+
+        if (midiOutput) {
+            midiOutput.send([status, transposedNote, data2]);
+        } else {
+            outputDiv.innerText += "No MIDI output selected.\n";
+        }
+    } else if (status >= 128 && status < 144) { // Note Off
+        const transposeIndex = data1 % pattern.length;
+        const transposeValue = pattern[transposeIndex];
+        const transposedNote = data1 + transposeValue;
+
+        outputDiv.innerText += `Note Off: Input ${data1}, Transposed ${transposedNote}\n`;
+
+        if (midiOutput) {
+            midiOutput.send([status, transposedNote, data2]);
+        } else {
+            outputDiv.innerText += "No MIDI output selected.\n";
+        }
+    }
+}
+
+document.getElementById('startButton').addEventListener('click', () => {
+    outputDiv.innerText = ""; // Clear previous output
+    initMIDI();
+});
