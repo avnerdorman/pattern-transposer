@@ -31,8 +31,8 @@
     <script>
         let midiAccess;
         let midiOutput;
-        const outputDiv = document.getElementById('output');
-        const midiOutputsDropdown = document.getElementById('midiOutputs');
+        let outputDiv = document.getElementById('output');
+        let midiOutputsDropdown = document.getElementById('midiOutputs');
 
         async function initMIDI() {
             try {
@@ -41,22 +41,20 @@
 
                 // Populate MIDI output dropdown
                 for (let output of midiAccess.outputs.values()) {
-                    const option = document.createElement('option');
+                    let option = document.createElement('option');
                     option.value = output.id;
                     option.text = output.name;
                     midiOutputsDropdown.appendChild(option);
                 }
 
-                // Listen for MIDI input
                 for (let input of midiAccess.inputs.values()) {
                     input.onmidimessage = handleMIDIMessage;
                 }
 
-                // Handle MIDI output selection
                 midiOutputsDropdown.addEventListener('change', () => {
-                    const selectedOutputId = midiOutputsDropdown.value;
+                    let selectedOutputId = midiOutputsDropdown.value;
                     midiOutput = midiAccess.outputs.get(selectedOutputId);
-                    outputDiv.innerText += `Selected MIDI Output: ${midiOutput?.name || "None"}\n`;
+                    outputDiv.innerText += Selected MIDI Output: ${midiOutput?.name || "None"}\n;
                 });
             } catch (error) {
                 outputDiv.innerText += "Failed to get MIDI access: " + error + "\n";
@@ -64,44 +62,33 @@
         }
 
         function parsePattern(pattern) {
-            try {
-                return pattern.split(/[\s,]+/).map(Number).filter(num => !isNaN(num));
-            } catch {
-                outputDiv.innerText += "Invalid pattern entered. Please check and try again.\n";
-                return [];
-            }
+            return pattern.split(/[\s,]+/).map(Number).filter(num => !isNaN(num));
         }
 
         function handleMIDIMessage(message) {
-            const [status, data1, data2] = message.data; // status, pitch, velocity
+            const [status, data1, data2] = message.data; // status, data1 = pitch, data2 = velocity
             const patternInput = document.getElementById('pattern').value;
             const pattern = parsePattern(patternInput);
 
-            if (!pattern.length) return;
-
-            if (status >= 144 && status < 160) { // Note On
+            if (status >= 144 && status < 160) { // Note On messages
                 const transposeIndex = data1 % pattern.length;
                 const transposeValue = pattern[transposeIndex];
                 const transposedNote = data1 + transposeValue;
 
-                outputDiv.innerText += `Note On: Input ${data1}, Transposed ${transposedNote}\n`;
+                outputDiv.innerText += Input Note: ${data1}, Transposed Note: ${transposedNote}\n;
 
+                // Send transposed note to MIDI output
                 if (midiOutput) {
-                    midiOutput.send([status, transposedNote, data2]);
-                } else {
-                    outputDiv.innerText += "No MIDI output selected.\n";
+                    midiOutput.send([status, transposedNote, data2]); // Send Note On
                 }
-            } else if (status >= 128 && status < 144) { // Note Off
+            } else if (status >= 128 && status < 144) { // Note Off messages
                 const transposeIndex = data1 % pattern.length;
                 const transposeValue = pattern[transposeIndex];
                 const transposedNote = data1 + transposeValue;
 
-                outputDiv.innerText += `Note Off: Input ${data1}, Transposed ${transposedNote}\n`;
-
+                // Send transposed note to MIDI output
                 if (midiOutput) {
-                    midiOutput.send([status, transposedNote, data2]);
-                } else {
-                    outputDiv.innerText += "No MIDI output selected.\n";
+                    midiOutput.send([status, transposedNote, data2]); // Send Note Off
                 }
             }
         }
