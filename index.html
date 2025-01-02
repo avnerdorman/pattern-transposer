@@ -61,14 +61,18 @@
         }
 
 function handleMIDIMessage(message) {
-    // Skip if message is from our selected output device
-    if (midiOutput && message.target && message.target.id === midiOutput.id) {
+    console.log('Message source:', message.target.id, message.target.name);
+    console.log('Selected output:', midiOutput?.id, midiOutput?.name);
+    
+    if (midiOutput && message.target.id === midiOutput.id) {
+        console.log('Skipping feedback message');
         return;
     }
 
     const [status, note, velocity] = message.data;
-    const pattern = parsePattern(document.getElementById('pattern').value);
+    console.log('MIDI message:', status, note, velocity);
     
+    const pattern = parsePattern(document.getElementById('pattern').value);
     if (!pattern.length) return;
 
     if ((status >= 128 && status < 144) || (status >= 144 && status < 160)) {
